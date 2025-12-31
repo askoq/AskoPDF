@@ -1,20 +1,20 @@
 # AskoPDF
 
-A lightweight and portable PDF Viewer
-
-![App Screenshot](https://github.com/user-attachments/assets/2159b54d-2815-4244-b8d8-fd26cc23ebd1)
+![App Screenshot](https://github.com/user-attachments/assets/15ceff63-52be-4954-b424-e55e1ae521bb)
 
 ## Download
 
 The application is available in Releases:
 
-**[Download Latest Version](https://github.com/askoq/askopdf/releases/latest)**
+**[Download latest version](https://github.com/askoq/askopdf/releases/latest)**
 
 ## Features
 
-Tabbed, lightweight PDF viewing
+Tabbed, groups and other
 
 ## How to run viewer
+
+The repository includes code exclusively for PDF viewing functionality. The complete program can be found in the Releases.
 
 Make sure you have [Git](https://git-scm.com/) and [Flutter](https://docs.flutter.dev/get-started) installed.
 
