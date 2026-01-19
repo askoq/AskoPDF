@@ -1,6 +1,6 @@
 # AskoPDF
 
-![App Screenshot](https://github.com/user-attachments/assets/15ceff63-52be-4954-b424-e55e1ae521bb)
+![App Screenshot](https://files.catbox.moe/x22m77.png)
 
 ## Download
 
