@@ -42,10 +42,3 @@ To include content in the group, switch to the **Pages** tab:
 
 * **Activation**: When a group is selected in the navigation menu, the interface color scheme and icons automatically adapt to the specified parameters.
 * **Editing and Deletion**: To make changes or delete a group, use the "pencil" or "trash can" icons located next to the group name in the list.
-
----
-
-> ### **Note**
-> The architecture of the "Groups" function is based on linking to the name and file path of the source file. 
-> * When moving or deleting a file, group data is saved in the application's local memory. 
-> * When replacing a file with a version having an identical name and file path, previously created groups will be automatically applied to the current document.
