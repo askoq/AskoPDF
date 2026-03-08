@@ -17,7 +17,7 @@ In the "Create Group" window, on the **General** tab, the following settings are
 * **Group Name**: Enter a name in the corresponding field. If no input is provided, the system will assign a default name - "Unnamed Group".
 * **Identifier (Icon)**: Select a symbol (emoji) for visual identification of the group in the list.
 
-![Create group](https://files.catbox.moe/mq6m1n.gif)
+![Create group](https://github.com/user-attachments/assets/9181c3a7-48b5-4c17-9a88-66238594c111)
 
 ## 3. Visualization and Style Settings (Appearance Tab)
 
@@ -26,7 +26,7 @@ The **Appearance** tab is designed for customizing the interface color scheme:
 * **Color Palette**: When selecting a gradient, you must define the Primary and Secondary colors.
 * **Navigation Panel Color**: Set the color for the navigation menu and the current page indicator (Page Indicator), which will be active when working within this group.
 
-![Appearance](https://files.catbox.moe/bef0u8.gif)
+![Appearance](https://github.com/user-attachments/assets/22005565-6629-408b-9407-51538910977c)
 
 ## 4. Creating the Page List (Pages Tab)
 
@@ -36,7 +36,7 @@ To include content in the group, switch to the **Pages** tab:
 * **Sorting**: It is possible to change the order of pages within the group.
 * **Completion**: Click the **Create Group** button to save settings.
 
-![Pages](https://files.catbox.moe/frx5yw.gif)
+![Pages](https://github.com/user-attachments/assets/e8dd12e1-2c78-45df-ae25-af6aa781dc8e)
 
 ## 5. Managing Created Objects
 
