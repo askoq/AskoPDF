@@ -136,10 +136,7 @@ class GelideBindings {
           .lookupFunction<_RenderPageSizedC, _RenderPageSizedDart>(
             'gelide_render_page_sized',
           ),
-      renderPageScaled = _lib
-          .lookupFunction<_RenderPageScaledC, _RenderPageScaledDart>(
-            'gelide_render_page_scaled',
-          ),
+      renderPageScaled = _resolveRenderPageScaled(_lib),
       freeBitmap = _lib.lookupFunction<_FreeBitmapC, _FreeBitmapDart>(
         'gelide_free_bitmap',
       ),
@@ -149,9 +146,7 @@ class GelideBindings {
       getAuthor = _lib.lookupFunction<_GetStringC, _GetStringDart>(
         'gelide_get_author',
       ),
-      getPdfVersion = _lib.lookupFunction<_GetStringC, _GetStringDart>(
-        'gelide_get_pdf_version',
-      ),
+      getPdfVersion = _resolveGetPdfVersion(_lib),
       freeString = _lib.lookupFunction<_FreeStringC, _FreeStringDart>(
         'gelide_free_string',
       );
@@ -204,6 +199,35 @@ class GelideBindings {
 
   static GelideBindings load([String? libraryPath]) {
     return GelideBindings._(openLibrary(libraryPath));
+  }
+
+  // better not touch this
+  static GelideBitmapDataNative Function(Pointer<Void>, int, double)
+      _resolveRenderPageScaled(DynamicLibrary lib) {
+    try {
+      return lib.lookupFunction<_RenderPageScaledC, _RenderPageScaledDart>(
+        'gelide_render_page_scaled',
+      );
+    } catch (_) {
+      final renderPage = lib.lookupFunction<_RenderPageC, _RenderPageDart>(
+        'gelide_render_page',
+      );
+      return (Pointer<Void> doc, int pageIndex, double scale) {
+        return renderPage(doc, pageIndex, scale * 72.0);
+      };
+    }
+  }
+
+  static Pointer<Utf8> Function(Pointer<Void>) _resolveGetPdfVersion(
+    DynamicLibrary lib,
+  ) {
+    try {
+      return lib.lookupFunction<_GetStringC, _GetStringDart>(
+        'gelide_get_pdf_version',
+      );
+    } catch (_) {
+      return (Pointer<Void> _) => nullptr;
+    }
   }
 
   String? takeLastError() {

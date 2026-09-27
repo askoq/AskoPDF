@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:asko_pdf/services/settings_service.dart';
 
 class SettingsDialog extends StatefulWidget {
@@ -197,34 +196,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
           ),
           const SizedBox(height: 8),
           Text(
-            'app-1.0.0 · gelide-0.6-l · pdfium-152.0.7961',
+            'gelide-pdf-0.6.8 · pdfium-156.0.8066.0',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
           const Spacer(),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () async {
-                final uri = Uri.parse('https://github.com/askoq');
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(
-                    uri,
-                    mode: LaunchMode.externalApplication,
-                  );
-                }
-              },
-              child: Text(
-                'askoq',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(context).primaryColor,
-                  fontWeight: FontWeight.w600,
-                  decoration: TextDecoration.underline,
-                  decorationColor: Theme.of(context).primaryColor,
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
