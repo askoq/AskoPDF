@@ -68,7 +68,7 @@ All files are on the [latest release](https://github.com/askoq/askopdf/releases/
 <details>
 <summary>Requirements, running and release builds</summary>
 
-This repository contains the source code based on version 1.0.0, along with later fixes and improvements. The Gelide core is included as prebuilt binaries.
+This repository contains the source code based on version 1.5.0, along with later fixes and improvements. The Gelide core is included as prebuilt binaries.
 
 ### Requirements
 

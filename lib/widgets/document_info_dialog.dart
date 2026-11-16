@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:asko_pdf/models/pdf_metadata.dart';
+import 'package:asko_pdf/l10n/app_localizations.dart';
+import 'package:asko_pdf/theme/app_colors.dart';
 
 class DocumentInfoDialog extends StatelessWidget {
   final String documentTitle;
@@ -19,7 +21,7 @@ class DocumentInfoDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final meta = metadata;
+    final l10n = AppLocalizations.of(context)!;
 
     return Dialog(
       backgroundColor: Colors.white,
@@ -35,16 +37,25 @@ class DocumentInfoDialog extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.description_rounded,
-                    color: Theme.of(context).primaryColor,
-                    size: 28,
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.description_rounded,
+                      color: AppColors.primaryBlue,
+                      size: 24,
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  const Expanded(
+                  const SizedBox(width: 16),
+                  Expanded(
                     child: Text(
-                      'Properties',
-                      style: TextStyle(
+                      l10n.properties,
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         letterSpacing: -0.5,
@@ -54,7 +65,10 @@ class DocumentInfoDialog extends StatelessWidget {
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close_rounded),
-                    color: Colors.black54,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.grey.shade100,
+                      foregroundColor: Colors.black54,
+                    ),
                   ),
                 ],
               ),
@@ -64,33 +78,61 @@ class DocumentInfoDialog extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _section('File', [
-                        _item('Name', documentTitle),
-                        _item('Path', filePath),
-                        _item(
-                          'Size',
-                          meta != null
-                              ? _formatFileSize(meta.fileSize)
-                              : 'Unknown',
+                      _buildInfoSection(l10n.file, [
+                        _buildInfoItem(context, l10n.name, documentTitle),
+                        _buildInfoItem(context, l10n.path, filePath),
+                        _buildInfoItem(
+                          context,
+                          l10n.size,
+                          metadata != null
+                              ? _formatFileSize(metadata!.fileSize)
+                              : l10n.unknown,
                         ),
-                        _item(
-                          'Modified',
-                          meta?.lastModified != null
-                              ? _formatDateTime(meta!.lastModified!)
-                              : 'Unknown',
-                        ),
-                        if (meta?.lastAccessed != null)
-                          _item(
-                            'Accessed',
-                            _formatDateTime(meta!.lastAccessed!),
+                        if (metadata?.lastModified != null)
+                          _buildInfoItem(
+                            context,
+                            l10n.modified,
+                            _formatDateTime(metadata!.lastModified!),
+                          ),
+                        if (metadata?.lastAccessed != null)
+                          _buildInfoItem(
+                            context,
+                            l10n.accessed,
+                            _formatDateTime(metadata!.lastAccessed!),
+                            isLast: true,
+                          )
+                        else
+                          _buildInfoItem(
+                            context,
+                            l10n.modified,
+                            metadata?.lastModified != null
+                                ? _formatDateTime(metadata!.lastModified!)
+                                : l10n.unknown,
+                            isLast: true,
                           ),
                       ]),
                       const SizedBox(height: 24),
-                      _section('Document', [
-                        _item('Pages', '$totalPages'),
-                        _item('Page Size', _pageSizeLabel()),
-                        if (meta?.pdfVersion != null)
-                          _item('PDF Version', meta!.pdfVersion!),
+                      _buildInfoSection(l10n.document, [
+                        _buildInfoItem(context, l10n.pagesCount, '$totalPages'),
+                        _buildInfoItem(
+                          context,
+                          l10n.pageSize,
+                          _getPageSizeInfo(l10n),
+                        ),
+                        if (metadata?.pdfVersion != null)
+                          _buildInfoItem(
+                            context,
+                            l10n.pdfVersion,
+                            metadata!.pdfVersion!,
+                            isLast: true,
+                          )
+                        else
+                          _buildInfoItem(
+                            context,
+                            l10n.pageSize,
+                            _getPageSizeInfo(l10n),
+                            isLast: true,
+                          ),
                       ]),
                     ],
                   ),
@@ -103,17 +145,23 @@ class DocumentInfoDialog extends StatelessWidget {
     );
   }
 
-  String _pageSizeLabel() {
-    if (pageSizes.isEmpty) return 'Unknown';
-    final w = pageSizes.first.width.round();
-    final h = pageSizes.first.height.round();
-    final name = _detectPageSizeName(w.toDouble(), h.toDouble());
-    return name != null ? '$w × $h pt ($name)' : '$w × $h pt';
+  String _getPageSizeInfo(AppLocalizations l10n) {
+    if (pageSizes.isEmpty) return l10n.unknown;
+    final width = pageSizes.first.width.round();
+    final height = pageSizes.first.height.round();
+    final pageSizeName = _detectPageSizeName(
+      width.toDouble(),
+      height.toDouble(),
+    );
+    if (pageSizeName != null) {
+      return '$width × $height pt ($pageSizeName)';
+    }
+    return '$width × $height pt';
   }
 
   String? _detectPageSizeName(double width, double height) {
-    const t = 5.0;
-    const sizes = {
+    const tolerance = 5.0;
+    final sizes = {
       'A4': [595.0, 842.0],
       'A3': [842.0, 1191.0],
       'A5': [420.0, 595.0],
@@ -121,31 +169,48 @@ class DocumentInfoDialog extends StatelessWidget {
       'Legal': [612.0, 1008.0],
       'Tabloid': [792.0, 1224.0],
     };
-    for (final e in sizes.entries) {
-      final a = e.value[0], b = e.value[1];
-      if ((width - a).abs() < t && (height - b).abs() < t) return e.key;
-      if ((width - b).abs() < t && (height - a).abs() < t) {
-        return '${e.key} (Landscape)';
+
+    for (var entry in sizes.entries) {
+      final w = entry.value[0];
+      final h = entry.value[1];
+      if ((width - w).abs() < tolerance && (height - h).abs() < tolerance) {
+        return entry.key;
+      }
+      if ((width - h).abs() < tolerance && (height - w).abs() < tolerance) {
+        return '${entry.key} (Landscape)';
       }
     }
     return null;
   }
 
   String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
     if (bytes < 1024 * 1024 * 1024) {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  String _formatDateTime(DateTime d) {
-    String p(int n) => n.toString().padLeft(2, '0');
-    return '${p(d.day)}.${p(d.month)}.${d.year}, ${p(d.hour)}:${p(d.minute)}';
+  String _formatDateTime(DateTime dateTime) {
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final year = dateTime.year;
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$day.$month.$year, $hour:$minute';
   }
 
-  Widget _section(String title, List<Widget> children) {
+  Widget _buildInfoSection(String title, List<Widget> children) {
+    final filteredChildren = <Widget>[];
+    for (int i = 0; i < children.length; i++) {
+      filteredChildren.add(children[i]);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -165,28 +230,24 @@ class DocumentInfoDialog extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade200),
           ),
-          child: Column(
-            children: [
-              for (var i = 0; i < children.length; i++)
-                DecoratedBox(
-                  decoration: i == children.length - 1
-                      ? const BoxDecoration()
-                      : BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade200),
-                          ),
-                        ),
-                  child: children[i],
-                ),
-            ],
-          ),
+          child: Column(children: filteredChildren),
         ),
       ],
     );
   }
 
-  Widget _item(String label, String value) {
-    return Padding(
+  Widget _buildInfoItem(
+    BuildContext context,
+    String label,
+    String value, {
+    bool isLast = false,
+  }) {
+    return Container(
+      decoration: isLast
+          ? null
+          : BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,7 +264,7 @@ class DocumentInfoDialog extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
+            child: SelectableText(
               value,
               style: const TextStyle(
                 fontSize: 14,

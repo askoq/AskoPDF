@@ -1,203 +1,61 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-class RecentFileEntry {
-  final String path;
-  final String hash;
-  final int size;
-
-  const RecentFileEntry({
-    required this.path,
-    required this.hash,
-    required this.size,
-  });
-
-  Map<String, dynamic> toJson() => {'path': path, 'hash': hash, 'size': size};
-
-  factory RecentFileEntry.fromJson(Map<String, dynamic> json) {
-    return RecentFileEntry(
-      path: json['path'] as String? ?? '',
-      hash: json['hash'] as String? ?? '',
-      size: (json['size'] as num?)?.toInt() ?? 0,
-    );
-  }
-}
+import 'package:asko_pdf/models/file_identifier.dart';
+import 'package:asko_pdf/services/document_storage_service.dart';
 
 class RecentFilesService {
-  static const String _keyRecentFiles = 'recent_files_v2';
-  static const String _keyLegacyPaths = 'recent_files';
   static const String _keyRecentFilesExpanded = 'recent_files_expanded';
-  static const int _maxRecentFiles = 10;
-  static const int _sampleBytes = 64 * 1024;
-  static Future<void> _operationQueue = Future<void>.value();
+  final DocumentStorageService _storageService = DocumentStorageService();
 
-  static Future<T> _synchronized<T>(Future<T> Function() operation) {
-    final result = _operationQueue.then((_) => operation());
-    _operationQueue = result.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace _) {},
-    );
-    return result;
+  Future<bool> getRecentFilesExpanded() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyRecentFilesExpanded) ?? true;
   }
 
-  Future<bool> getRecentFilesExpanded() {
-    return _synchronized(() async {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_keyRecentFilesExpanded) ?? true;
-    });
+  Future<void> setRecentFilesExpanded(bool expanded) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyRecentFilesExpanded, expanded);
   }
 
-  Future<void> setRecentFilesExpanded(bool expanded) {
-    return _synchronized(() async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyRecentFilesExpanded, expanded);
-    });
+  Future<List<FileIdentifier>> getRecentFileIdentifiers() async {
+    return await _storageService.getRecentFiles();
   }
 
-  // hash start & end of file
-  static Future<String> computeFileHash(String path) async {
-    final file = File(path);
-    final length = await file.length();
-    final digest = await sha256.bind(_hashSampleStream(file, length)).first;
-    return digest.toString();
-  }
+  Future<List<String>> getRecentFiles() async {
+    final identifiers = await getRecentFileIdentifiers();
+    final List<String> paths = [];
 
-  static Stream<List<int>> _hashSampleStream(File file, int length) async* {
-    yield utf8.encode('len=$length;');
-    if (length <= 0) return;
+    for (final identifier in identifiers) {
+      final lookup = await _storageService.lookupDocument(identifier.path);
 
-    final raf = await file.open();
-    try {
-      final headLen = length < _sampleBytes ? length : _sampleBytes;
-      yield await raf.read(headLen);
-
-      if (length > _sampleBytes * 2) {
-        await raf.setPosition(length - _sampleBytes);
-        yield await raf.read(_sampleBytes);
-      } else if (length > _sampleBytes) {
-        await raf.setPosition(headLen);
-        yield await raf.read(length - headLen);
+      if (lookup.matchResult == FileMatchResult.exactMatch ||
+          lookup.matchResult == FileMatchResult.pathChanged) {
+        paths.add(lookup.currentFileIdentifier?.path ?? identifier.path);
       }
-    } finally {
-      await raf.close();
+    }
+
+    return paths;
+  }
+
+  Future<void> addRecentFile(String path) async {
+    final identifier = await FileIdentifier.fromFile(path);
+    if (identifier != null) {
+      await _storageService.registerFileOpened(identifier);
     }
   }
 
-  Future<List<RecentFileEntry>> _loadEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_keyRecentFiles);
-    if (raw != null) {
-      final list = <RecentFileEntry>[];
-      for (final s in raw) {
-        try {
-          final map = jsonDecode(s) as Map<String, dynamic>;
-          final e = RecentFileEntry.fromJson(map);
-          if (e.path.isNotEmpty && e.hash.isNotEmpty) list.add(e);
-        } catch (_) {}
-      }
-      return list;
-    }
-
-    final legacy = prefs.getStringList(_keyLegacyPaths);
-    if (legacy == null || legacy.isEmpty) return [];
-    await prefs.remove(_keyLegacyPaths);
-    return [];
+  Future<void> addRecentFileIdentifier(FileIdentifier identifier) async {
+    await _storageService.registerFileOpened(identifier);
   }
 
-  Future<void> _saveEntries(List<RecentFileEntry> entries) async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = entries.map((e) => jsonEncode(e.toJson())).toList();
-    await prefs.setStringList(_keyRecentFiles, raw);
+  Future<void> removeRecentFile(String path) async {
+    await _storageService.removeDocumentByPath(path);
   }
 
-  Future<List<String>> getRecentFiles() {
-    return _synchronized(() async {
-      final entries = await _loadEntries();
-      if (entries.isEmpty) return <String>[];
-
-      final valid = <RecentFileEntry>[];
-      final paths = <String>[];
-
-      for (final e in entries) {
-        final file = File(e.path);
-        if (!await file.exists()) continue;
-        try {
-          final size = await file.length();
-          if (size != e.size) continue;
-          final hash = await computeFileHash(e.path);
-          if (hash != e.hash) continue;
-          valid.add(e);
-          paths.add(e.path);
-        } catch (_) {}
-      }
-
-      if (valid.length != entries.length) {
-        await _saveEntries(valid);
-      }
-      return paths;
-    });
+  Future<void> removeRecentFileIdentifier(FileIdentifier identifier) async {
+    await _storageService.removeDocument(identifier.id);
   }
 
-  Future<void> addRecentFile(String path) {
-    return _synchronized(() async {
-      final file = File(path);
-      if (!await file.exists()) return;
-
-      final size = await file.length();
-      final hash = await computeFileHash(path);
-      final entry = RecentFileEntry(path: path, hash: hash, size: size);
-
-      var entries = await _loadEntries();
-      entries.removeWhere((e) => e.path == path);
-      entries.insert(0, entry);
-      if (entries.length > _maxRecentFiles) {
-        entries = entries.sublist(0, _maxRecentFiles);
-      }
-      await _saveEntries(entries);
-    });
-  }
-
-  Future<void> removeRecentFile(String path) {
-    return _synchronized(() async {
-      final entries = await _loadEntries();
-      entries.removeWhere((e) => e.path == path);
-      await _saveEntries(entries);
-    });
-  }
-
-  Future<void> clearRecentFiles() {
-    return _synchronized(() async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_keyRecentFiles);
-      await prefs.remove(_keyLegacyPaths);
-    });
-  }
-
-  Future<bool> verifyRecentFile(String path) {
-    return _synchronized(() async {
-      final entries = await _loadEntries();
-      RecentFileEntry? entry;
-      for (final e in entries) {
-        if (e.path == path) {
-          entry = e;
-          break;
-        }
-      }
-      if (entry == null) return false;
-      final file = File(path);
-      if (!await file.exists()) return false;
-      try {
-        final size = await file.length();
-        if (size != entry.size) return false;
-        final hash = await computeFileHash(path);
-        return hash == entry.hash;
-      } catch (_) {
-        return false;
-      }
-    });
+  Future<void> clearRecentFiles() async {
+    await _storageService.clearAllDocuments();
   }
 }

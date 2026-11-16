@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:asko_pdf/l10n/app_localizations.dart';
+import 'package:asko_pdf/theme/app_colors.dart';
 
 class CustomZoomDialog extends StatelessWidget {
   final double currentScale;
@@ -8,6 +10,7 @@ class CustomZoomDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController(
       text: (currentScale * 100).round().toString(),
     );
@@ -19,9 +22,9 @@ class CustomZoomDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Zoom',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text(
+              l10n.zoom,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -48,7 +51,7 @@ class CustomZoomDialog extends StatelessWidget {
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(
-                      color: Theme.of(context).primaryColor,
+                      color: AppColors.primaryBlue,
                       width: 2,
                     ),
                   ),
@@ -64,33 +67,86 @@ class CustomZoomDialog extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '10 – 400',
+              '${l10n.minZoom} · ${l10n.maxZoom}',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
             const SizedBox(height: 16),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                _ZoomDialogButton(
+                  label: l10n.cancel,
+                  backgroundColor: Colors.grey.shade100,
+                  hoverColor: Colors.grey.shade200,
+                  textColor: Colors.black54,
+                  onTap: () => Navigator.of(context).pop(),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(controller.text),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
+                _ZoomDialogButton(
+                  label: l10n.apply,
+                  backgroundColor: AppColors.primaryBlue,
+                  hoverColor: AppColors.primaryBlue.withValues(
+                    alpha: 0.85,
                   ),
-                  child: const Text('Apply'),
+                  textColor: Colors.white,
+                  onTap: () => Navigator.of(context).pop(controller.text),
                 ),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ZoomDialogButton extends StatefulWidget {
+  final String label;
+  final Color backgroundColor;
+  final Color hoverColor;
+  final Color textColor;
+  final VoidCallback onTap;
+
+  const _ZoomDialogButton({
+    required this.label,
+    required this.backgroundColor,
+    required this.hoverColor,
+    required this.textColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_ZoomDialogButton> createState() => _ZoomDialogButtonState();
+}
+
+class _ZoomDialogButtonState extends State<_ZoomDialogButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = _isHovered ? widget.hoverColor : widget.backgroundColor;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: widget.textColor,
+            ),
+          ),
         ),
       ),
     );
