@@ -66,6 +66,53 @@ class _GelideDocument {
     }
   }
 
+  List<_SearchResult> search(
+    int index,
+    String query, {
+    bool caseSensitive = false,
+  }) {
+    _check();
+    if (query.isEmpty) return const <_SearchResult>[];
+    final queryPtr = query.toNativeUtf8();
+    try {
+      final results =
+          _engine._search(_handle!, index, queryPtr, caseSensitive ? 1 : 0);
+      if (results.results == nullptr || results.count == 0) {
+        return const <_SearchResult>[];
+      }
+      try {
+        final list = <_SearchResult>[];
+        for (var i = 0; i < results.count; i++) {
+          final native = results.results[i];
+          final rects = <double>[];
+          if (native.rects != nullptr) {
+            for (var j = 0; j < native.rectCount; j++) {
+              final rect = native.rects[j];
+              rects
+                ..add(rect.left)
+                ..add(rect.top)
+                ..add(rect.right)
+                ..add(rect.bottom);
+            }
+          }
+          list.add(
+            _SearchResult(
+              native.text == nullptr ? '' : native.text.toDartString(),
+              native.startIndex,
+              native.endIndex,
+              rects,
+            ),
+          );
+        }
+        return list;
+      } finally {
+        _engine._freeSearchResults(results);
+      }
+    } finally {
+      calloc.free(queryPtr);
+    }
+  }
+
   Future<ui.Image> renderPageAsImage(int index, {double dpi = 150.0}) async {
     final bytes = await _renderPage(index, dpi);
     return _bytesToImage(bytes.data, bytes.width, bytes.height);
@@ -147,4 +194,13 @@ class _RenderedBytes {
   final int width;
   final int height;
   _RenderedBytes(this.data, this.width, this.height);
+}
+
+class _SearchResult {
+  final String text;
+  final int startIndex;
+  final int endIndex;
+  final List<double> rects;
+
+  const _SearchResult(this.text, this.startIndex, this.endIndex, this.rects);
 }

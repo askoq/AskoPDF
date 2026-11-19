@@ -47,6 +47,9 @@ class _GelideEngine {
   late final _GelideBitmapDataNative Function(
       Pointer<Void>, int, int, int, int, int, int, int) _renderTile;
   late final void Function(_GelideBitmapDataNative) _freeBitmap;
+  late final _GelideSearchResultsNative Function(
+      Pointer<Void>, int, Pointer<Utf8>, int) _search;
+  late final void Function(_GelideSearchResultsNative) _freeSearchResults;
   late final _GelidePageInfoNative Function(Pointer<Void>, int) _getPageInfo;
   late final _GelidePageInfosNative Function(Pointer<Void>) _getPageInfos;
   late final void Function(_GelidePageInfosNative) _freePageInfos;
@@ -189,6 +192,17 @@ class _GelideEngine {
 
     _freeBitmap = _lib.lookupFunction<Void Function(_GelideBitmapDataNative),
         void Function(_GelideBitmapDataNative)>('gelide_free_bitmap');
+
+    _search = _lib.lookupFunction<
+        _GelideSearchResultsNative Function(
+            Pointer<Void>, Int32, Pointer<Utf8>, Int32),
+        _GelideSearchResultsNative Function(
+            Pointer<Void>, int, Pointer<Utf8>, int)>('gelide_search');
+
+    _freeSearchResults = _lib.lookupFunction<
+        Void Function(_GelideSearchResultsNative),
+        void Function(
+            _GelideSearchResultsNative)>('gelide_free_search_results');
 
     _getPageInfo = _lib.lookupFunction<
         _GelidePageInfoNative Function(Pointer<Void>, Int32),

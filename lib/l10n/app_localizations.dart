@@ -67,6 +67,17 @@ class AppLocalizations {
           'Check that pdfium.dll exists next to the application and is not damaged or blocked by the system.',
       'technicalDetails': 'Technical details',
       'pageNavigation': 'Page navigation',
+      'searchInDocument': 'Search in document',
+      'searchPlaceholder': 'Find in document...',
+      'previousResult': 'Previous result',
+      'nextResult': 'Next result',
+      'noMatchesFound': 'No matches',
+      'match': 'match',
+      'matches': 'matches',
+      'tipLabel': 'Tip',
+      'splitViewDragTip': 'Drag a tab over the document to open Split View.',
+      'splitViewMenuTip':
+          'Click "Split View" in the title bar to open the mode menu.',
       'rotate': 'Rotate',
       'rotateCurrentPage': 'Rotate current page',
       'rotateAllPages': 'Rotate all pages',
@@ -245,6 +256,16 @@ class AppLocalizations {
       _t('technicalDetails');
   String get pageNavigation =>
       _t('pageNavigation');
+  String get searchInDocument => _t('searchInDocument');
+  String get searchPlaceholder => _t('searchPlaceholder');
+  String get previousResult => _t('previousResult');
+  String get nextResult => _t('nextResult');
+  String get noMatchesFound => _t('noMatchesFound');
+  String get match => _t('match');
+  String get matches => _t('matches');
+  String get tipLabel => _t('tipLabel');
+  String get splitViewDragTip => _t('splitViewDragTip');
+  String get splitViewMenuTip => _t('splitViewMenuTip');
   String get rotate => _t('rotate');
   String get rotateCurrentPage =>
       _t('rotateCurrentPage');

@@ -157,6 +157,178 @@ class _CardIconActionButtonState extends State<_CardIconActionButton> {
   }
 }
 
+enum _TipArrowSide { top, right }
+
+class _TipCloseButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _TipCloseButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return HoverBuilder(
+      cursor: SystemMouseCursors.click,
+      builder: (context, isHovered) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: isHovered ? 0.18 : 0),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: isHovered ? 0.22 : 0),
+            ),
+          ),
+          child: const Icon(Icons.close_rounded, size: 16, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
+class _TipCard extends StatelessWidget {
+  final String message;
+  final VoidCallback onClose;
+  final _TipArrowSide arrowSide;
+
+  const _TipCard({
+    super.key,
+    required this.message,
+    required this.onClose,
+    required this.arrowSide,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final bubble = Container(
+      constraints: const BoxConstraints(maxWidth: 336),
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2593FF), Color(0xFF1C6FE0)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1C6FE0).withValues(alpha: 0.24),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.17),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: const Icon(
+              Icons.lightbulb_rounded,
+              size: 17,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.tipLabel,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.7,
+                    color: Colors.white.withValues(alpha: 0.84),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _TipCloseButton(onTap: onClose),
+        ],
+      ),
+    );
+
+    final arrow = Transform.rotate(
+      angle: pi / 4,
+      child: Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2084F2),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1C6FE0).withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          bubble,
+          if (arrowSide == _TipArrowSide.right)
+            Positioned(
+              right: -8,
+              top: 0,
+              bottom: 0,
+              child: Center(child: arrow),
+            ),
+          if (arrowSide == _TipArrowSide.top)
+            Positioned(top: -8, left: 0, right: 0, child: Center(child: arrow)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchSnapshot {
+  final PdfDocumentHandle document;
+  final List<int> scope;
+  final String query;
+  final List<PdfSearchMatch> results;
+  final Set<int> matchedPages;
+
+  _SearchSnapshot({
+    required this.document,
+    required this.scope,
+    required this.query,
+    required this.results,
+  }) : matchedPages = {for (final match in results) match.pageIndex};
+}
+
 class _PdfViewerPageState extends State<PdfViewerPage>
     with TickerProviderStateMixin {
   static const double _minScale = 0.1;
@@ -198,6 +370,8 @@ class _PdfViewerPageState extends State<PdfViewerPage>
   bool _isRecentFilesExpanded = true;
   bool _copyPageAsImageEnabled = true;
   bool _zoomAnimationEnabled = true;
+  bool _isSplitViewDragTipDismissed = false;
+  bool _isSplitViewMenuTipDismissed = false;
   bool _isEngineUnavailableDialogOpen = false;
 
   Map<String, DocumentGroups> _documentGroups = {};
@@ -217,6 +391,11 @@ class _PdfViewerPageState extends State<PdfViewerPage>
   final Map<String, OverlayEntry> _rotationMenuOverlays = {};
   String? _editingSplitTabId;
   final TextEditingController _splitRenameController = TextEditingController();
+  final Map<String, TextEditingController> _searchControllers = {};
+  final Map<String, FocusNode> _searchFocusNodes = {};
+  final Map<String, Timer> _searchDebounceTimers = {};
+  final Map<String, _SearchSnapshot> _searchSnapshots = {};
+  static final RegExp _combiningMark = RegExp(r'\p{M}', unicode: true);
 
   int? _splitTabIndex;
   bool _splitDropZoneActive = false;
@@ -267,12 +446,32 @@ class _PdfViewerPageState extends State<PdfViewerPage>
   Future<void> _loadSettings() async {
     final copyEnabled = await _settingsService.getCopyPageAsImageEnabled();
     final zoomAnim = await _settingsService.getZoomAnimationEnabled();
+    final splitViewDragTipDismissed = await _settingsService
+        .getSplitViewDragTipDismissed();
+    final splitViewMenuTipDismissed = await _settingsService
+        .getSplitViewMenuTipDismissed();
     if (mounted) {
       setState(() {
         _copyPageAsImageEnabled = copyEnabled;
         _zoomAnimationEnabled = zoomAnim;
+        _isSplitViewDragTipDismissed = splitViewDragTipDismissed;
+        _isSplitViewMenuTipDismissed = splitViewMenuTipDismissed;
       });
     }
+  }
+
+  void _dismissSplitViewDragTip() {
+    setState(() {
+      _isSplitViewDragTipDismissed = true;
+    });
+    unawaited(_settingsService.setSplitViewDragTipDismissed(true));
+  }
+
+  void _dismissSplitViewMenuTip() {
+    setState(() {
+      _isSplitViewMenuTipDismissed = true;
+    });
+    unawaited(_settingsService.setSplitViewMenuTipDismissed(true));
   }
 
   Future<void> _loadProjects() async {
@@ -292,6 +491,700 @@ class _PdfViewerPageState extends State<PdfViewerPage>
       return tab.documentTitle;
     }
     return tab.filePath.split(Platform.pathSeparator).last;
+  }
+
+  String _documentGroupsKeyForTab(PdfTab tab) {
+    return tab.fileIdentifier?.id ?? tab.filePath;
+  }
+
+  TextEditingController _searchControllerForTab(PdfTab tab) {
+    return _searchControllers.putIfAbsent(
+      tab.id,
+      () => TextEditingController(text: tab.searchQuery),
+    );
+  }
+
+  FocusNode _searchFocusNodeForTab(PdfTab tab) {
+    return _searchFocusNodes.putIfAbsent(tab.id, FocusNode.new);
+  }
+
+  void _disposeSearchUiForTab(PdfTab tab) {
+    _searchDebounceTimers.remove(tab.id)?.cancel();
+    _searchControllers.remove(tab.id)?.dispose();
+    _searchFocusNodes.remove(tab.id)?.dispose();
+    _searchSnapshots.remove(tab.id);
+  }
+
+  bool _sameIndices(List<int> a, List<int> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  String? _plainSearchKey(String query) {
+    final buffer = StringBuffer();
+    for (final rune in query.runes) {
+      final char = String.fromCharCode(rune);
+      if (_combiningMark.hasMatch(char)) return null;
+      final lower = char.toLowerCase();
+      if (lower.runes.length != 1) return null;
+      buffer.write(lower);
+    }
+    return buffer.toString();
+  }
+
+  bool _narrowsSearch(String previous, String next) {
+    final previousKey = _plainSearchKey(previous);
+    final nextKey = _plainSearchKey(next);
+    return previousKey != null &&
+        nextKey != null &&
+        previousKey.isNotEmpty &&
+        nextKey != previousKey &&
+        nextKey.contains(previousKey);
+  }
+
+  PdfSearchMatch? _activeSearchMatchForTab(PdfTab tab) {
+    final index = tab.currentSearchResultIndex;
+    if (index < 0 || index >= tab.searchResults.length) {
+      return null;
+    }
+    return tab.searchResults[index];
+  }
+
+  List<int>? _groupPageIndicesForTab(PdfTab tab) {
+    final activeGroup =
+        _documentGroups[_documentGroupsKeyForTab(tab)]?.activeGroup;
+    if (activeGroup == null || activeGroup.pages.isEmpty) {
+      return null;
+    }
+    final pages = activeGroup.pageNumbers
+        .where((pageNumber) => pageNumber >= 1 && pageNumber <= tab.totalPages)
+        .map((pageNumber) => pageNumber - 1)
+        .toList(growable: false);
+    return pages.isEmpty ? null : pages;
+  }
+
+  List<int> _visiblePageIndicesForTab(PdfTab tab) {
+    return _groupPageIndicesForTab(tab) ??
+        List<int>.generate(tab.totalPages, (index) => index);
+  }
+
+  int _pageDisplayQuarterTurns(PdfTab tab, int pageIndex) {
+    final pageAngle =
+        tab.globalRotationAngle +
+        (pageIndex < tab.pageRotations.length
+            ? tab.pageRotations[pageIndex]
+            : 0.0);
+    final normalizedAngle = ((pageAngle % 360) + 360) % 360;
+    return (normalizedAngle ~/ 90) % 4;
+  }
+
+  double _pageDisplayHeight(PdfTab tab, int pageIndex) {
+    if (pageIndex < 0 || pageIndex >= tab.pageSizes.length) {
+      return 0.0;
+    }
+    return _pageDisplayQuarterTurns(tab, pageIndex).isOdd
+        ? tab.pageSizes[pageIndex].width
+        : tab.pageSizes[pageIndex].height;
+  }
+
+  double _scrollOffsetForPage(PdfTab tab, int pageIndex) {
+    final groupPages = _groupPageIndicesForTab(tab);
+    final visibleIndex = groupPages?.indexOf(pageIndex) ?? -1;
+    if (groupPages == null || visibleIndex == -1) {
+      if (pageIndex < 0 || pageIndex >= tab.pageOffsets.length) {
+        return 0.0;
+      }
+      return tab.pageOffsets[pageIndex] * tab.scale;
+    }
+
+    final scaledPadding = _pageSpacing * tab.scale;
+    var offset = 0.0;
+    for (var i = 0; i < visibleIndex; i++) {
+      offset += _pageDisplayHeight(tab, groupPages[i]) * tab.scale;
+      offset += scaledPadding;
+    }
+    return offset;
+  }
+
+  int _currentPageInGroup(PdfTab tab, List<int> groupPages) {
+    if (!tab.scrollController.hasClients) {
+      return groupPages.contains(tab.currentPage - 1)
+          ? tab.currentPage
+          : groupPages.first + 1;
+    }
+
+    final viewportCenter =
+        tab.scrollController.offset +
+        tab.scrollController.position.viewportDimension / 2;
+    final scaledPadding = _pageSpacing * tab.scale;
+    var pageTop = scaledPadding;
+    var selectedPageIndex = groupPages.first;
+
+    for (final pageIndex in groupPages) {
+      if (pageTop > viewportCenter) break;
+      selectedPageIndex = pageIndex;
+      pageTop += _pageDisplayHeight(tab, pageIndex) * tab.scale;
+      pageTop += scaledPadding;
+    }
+
+    return selectedPageIndex + 1;
+  }
+
+  int _displayPageNumberInGroup(int currentPage, List<int> groupPages) {
+    if (groupPages.isEmpty) {
+      return currentPage;
+    }
+
+    final currentPageIndex = currentPage - 1;
+    final exactIndex = groupPages.indexOf(currentPageIndex);
+    if (exactIndex != -1) {
+      return exactIndex + 1;
+    }
+
+    var nearestIndex = 0;
+    var nearestDistance = (groupPages.first - currentPageIndex).abs();
+    for (var i = 1; i < groupPages.length; i++) {
+      final distance = (groupPages[i] - currentPageIndex).abs();
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = i;
+      }
+    }
+    return nearestIndex + 1;
+  }
+
+  Map<int, List<PdfSearchMatch>> _groupSearchResultsByPage(
+    List<PdfSearchMatch> results,
+  ) {
+    final grouped = <int, List<PdfSearchMatch>>{};
+    for (final result in results) {
+      (grouped[result.pageIndex] ??= <PdfSearchMatch>[]).add(result);
+    }
+    return grouped;
+  }
+
+  Rect _rotateNormalizedRect(Rect rect, int quarterTurns) {
+    final normalized = Rect.fromLTRB(
+      min(rect.left, rect.right),
+      min(rect.top, rect.bottom),
+      max(rect.left, rect.right),
+      max(rect.top, rect.bottom),
+    );
+    switch (quarterTurns % 4) {
+      case 1:
+        return Rect.fromLTRB(
+          1.0 - normalized.bottom,
+          normalized.left,
+          1.0 - normalized.top,
+          normalized.right,
+        );
+      case 2:
+        return Rect.fromLTRB(
+          1.0 - normalized.right,
+          1.0 - normalized.bottom,
+          1.0 - normalized.left,
+          1.0 - normalized.top,
+        );
+      case 3:
+        return Rect.fromLTRB(
+          normalized.top,
+          1.0 - normalized.right,
+          normalized.bottom,
+          1.0 - normalized.left,
+        );
+      default:
+        return normalized;
+    }
+  }
+
+  void _clearSearchState(
+    PdfTab tab, {
+    bool hideSearchBar = false,
+    bool clearQuery = true,
+  }) {
+    _searchDebounceTimers.remove(tab.id)?.cancel();
+    tab.searchGeneration += 1;
+    tab.isSearching = false;
+    tab.searchResults = [];
+    tab.searchResultsByPage = {};
+    tab.currentSearchResultIndex = -1;
+    if (clearQuery) {
+      tab.searchQuery = '';
+      _searchControllers[tab.id]?.clear();
+    }
+    if (hideSearchBar) {
+      tab.isSearchVisible = false;
+      _searchFocusNodes[tab.id]?.unfocus();
+      _searchSnapshots.remove(tab.id);
+    }
+  }
+
+  void _toggleSearchBar(PdfTab tab) {
+    final controller = _searchControllerForTab(tab);
+    final focusNode = _searchFocusNodeForTab(tab);
+
+    setState(() {
+      if (tab.isSearchVisible) {
+        _clearSearchState(tab, hideSearchBar: true);
+      } else {
+        _isTabBarExpanded = false;
+        tab.isSearchVisible = true;
+        controller.value = TextEditingValue(
+          text: tab.searchQuery,
+          selection: TextSelection.collapsed(offset: tab.searchQuery.length),
+        );
+      }
+    });
+
+    if (tab.isSearchVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          focusNode.requestFocus();
+        }
+      });
+    }
+  }
+
+  void _onSearchQueryChanged(PdfTab tab, String value) {
+    _searchDebounceTimers.remove(tab.id)?.cancel();
+    tab.searchGeneration += 1;
+    final query = value.trim();
+
+    if (query.isEmpty) {
+      setState(() {
+        tab.searchQuery = '';
+        _clearSearchState(tab, clearQuery: false);
+      });
+      return;
+    }
+
+    setState(() {
+      tab.searchQuery = value;
+      tab.isSearching = true;
+    });
+
+    _searchDebounceTimers[tab.id] = Timer(
+      const Duration(milliseconds: 220),
+      () {
+        _searchDebounceTimers.remove(tab.id);
+        unawaited(_performSearch(tab, value));
+      },
+    );
+  }
+
+  Future<void> _performSearch(
+    PdfTab tab,
+    String rawQuery, {
+    bool revealFirstResult = true,
+  }) async {
+    final query = rawQuery.trim();
+    final document = tab.document;
+
+    if (document == null || !_tabs.contains(tab)) {
+      return;
+    }
+
+    if (query.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _clearSearchState(tab, clearQuery: false);
+      });
+      return;
+    }
+
+    final generation = ++tab.searchGeneration;
+    final scope = _visiblePageIndicesForTab(tab);
+    final previous = _searchSnapshots[tab.id];
+    final snapshot =
+        previous != null &&
+            identical(previous.document, document) &&
+            _sameIndices(previous.scope, scope)
+        ? previous
+        : null;
+
+    final List<PdfSearchMatch> results;
+    if (snapshot != null && snapshot.query == query) {
+      results = snapshot.results;
+    } else {
+      final pages = snapshot != null && _narrowsSearch(snapshot.query, query)
+          ? scope.where(snapshot.matchedPages.contains).toList(growable: false)
+          : scope;
+
+      if (mounted) {
+        setState(() {
+          tab.isSearching = true;
+        });
+      }
+
+      final found = <PdfSearchMatch>[];
+      var complete = true;
+      try {
+        for (final pageIndex in pages) {
+          if (generation != tab.searchGeneration || tab.document != document) {
+            return;
+          }
+          found.addAll(await document.searchText(pageIndex, query));
+        }
+      } catch (e) {
+        complete = false;
+        debugPrint('Search error: $e');
+      }
+
+      if (complete) {
+        _searchSnapshots[tab.id] = _SearchSnapshot(
+          document: document,
+          scope: scope,
+          query: query,
+          results: found,
+        );
+      }
+      results = found;
+    }
+
+    if (!mounted ||
+        generation != tab.searchGeneration ||
+        tab.document != document) {
+      return;
+    }
+
+    if (identical(results, tab.searchResults)) {
+      if (tab.isSearching || tab.searchQuery != query) {
+        setState(() {
+          tab.isSearching = false;
+          tab.searchQuery = query;
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      tab.isSearching = false;
+      tab.searchQuery = query;
+      tab.searchResults = results;
+      tab.searchResultsByPage = _groupSearchResultsByPage(results);
+      tab.currentSearchResultIndex = results.isEmpty ? -1 : 0;
+    });
+
+    if (revealFirstResult && results.isNotEmpty) {
+      _goToSearchResult(tab, 0);
+    }
+  }
+
+  void _refreshSearchForTab(PdfTab tab) {
+    final query = tab.searchQuery.trim();
+    if (query.isEmpty) {
+      if (!tab.isSearching &&
+          tab.searchResults.isEmpty &&
+          tab.searchResultsByPage.isEmpty) {
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _clearSearchState(tab, clearQuery: false);
+      });
+      return;
+    }
+
+    unawaited(_performSearch(tab, query, revealFirstResult: false));
+  }
+
+  double? _targetOffsetForSearchMatch(PdfTab tab, PdfSearchMatch match) {
+    if (match.pageIndex < 0 ||
+        match.pageIndex >= tab.pageOffsets.length ||
+        match.pageIndex >= tab.pageSizes.length ||
+        !tab.scrollController.hasClients) {
+      return null;
+    }
+
+    final position = tab.scrollController.position;
+    final pageTop =
+        _scrollOffsetForPage(tab, match.pageIndex) + _pageSpacing * tab.scale;
+    if (match.rects.isEmpty) {
+      return pageTop.clamp(0.0, position.maxScrollExtent).toDouble();
+    }
+
+    final quarterTurns = _pageDisplayQuarterTurns(tab, match.pageIndex);
+    final displayHeight = _pageDisplayHeight(tab, match.pageIndex) * tab.scale;
+    var matchTop = double.infinity;
+    var matchBottom = double.negativeInfinity;
+    for (final rect in match.rects) {
+      final rotated = _rotateNormalizedRect(rect, quarterTurns);
+      matchTop = min(matchTop, pageTop + rotated.top * displayHeight);
+      matchBottom = max(matchBottom, pageTop + rotated.bottom * displayHeight);
+    }
+
+    const topMargin = 24.0;
+    const bottomMargin = 96.0;
+    final viewportTop = position.pixels;
+    final viewportBottom = viewportTop + position.viewportDimension;
+    if (matchTop >= viewportTop + topMargin &&
+        matchBottom <= viewportBottom - bottomMargin) {
+      return null;
+    }
+
+    final target = matchTop - position.viewportDimension / 3;
+    return target.clamp(0.0, position.maxScrollExtent).toDouble();
+  }
+
+  double? _horizontalTargetForSearchMatch(PdfTab tab, PdfSearchMatch match) {
+    final controller = tab.horizontalScrollController;
+    if (match.rects.isEmpty ||
+        match.pageIndex < 0 ||
+        match.pageIndex >= tab.pageSizes.length ||
+        !controller.hasClients) {
+      return null;
+    }
+
+    final position = controller.position;
+    if (position.maxScrollExtent <= 0) {
+      return null;
+    }
+
+    final quarterTurns = _pageDisplayQuarterTurns(tab, match.pageIndex);
+    final pageSize = tab.pageSizes[match.pageIndex];
+    final displayWidth =
+        (quarterTurns.isOdd ? pageSize.height : pageSize.width) * tab.scale;
+    final spacing = _pageSpacing * tab.scale;
+    final scrollWidth = position.maxScrollExtent + position.viewportDimension;
+    final pageLeft = spacing + (scrollWidth - spacing * 2 - displayWidth) / 2;
+
+    var matchLeft = double.infinity;
+    var matchRight = double.negativeInfinity;
+    for (final rect in match.rects) {
+      final rotated = _rotateNormalizedRect(rect, quarterTurns);
+      matchLeft = min(matchLeft, pageLeft + rotated.left * displayWidth);
+      matchRight = max(matchRight, pageLeft + rotated.right * displayWidth);
+    }
+
+    const margin = 24.0;
+    final viewportLeft = position.pixels;
+    final viewportRight = viewportLeft + position.viewportDimension;
+    if (matchLeft >= viewportLeft + margin &&
+        matchRight <= viewportRight - margin) {
+      return null;
+    }
+
+    final matchCenter = (matchLeft + matchRight) / 2;
+    final target = matchCenter - position.viewportDimension / 2;
+    return target.clamp(0.0, position.maxScrollExtent).toDouble();
+  }
+
+  void _goToSearchResult(PdfTab tab, int index) {
+    if (tab.searchResults.isEmpty) {
+      return;
+    }
+
+    final resultCount = tab.searchResults.length;
+    final normalizedIndex = ((index % resultCount) + resultCount) % resultCount;
+    final match = tab.searchResults[normalizedIndex];
+
+    setState(() {
+      tab.currentSearchResultIndex = normalizedIndex;
+    });
+
+    final targetOffset = _targetOffsetForSearchMatch(tab, match);
+    if (targetOffset != null) {
+      tab.scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOut,
+      );
+    }
+
+    final horizontalTarget = _horizontalTargetForSearchMatch(tab, match);
+    if (horizontalTarget != null) {
+      tab.horizontalScrollController.animateTo(
+        horizontalTarget,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _navigateSearchResult(PdfTab tab, int delta) {
+    if (tab.searchResults.isEmpty) {
+      return;
+    }
+
+    final currentIndex = tab.currentSearchResultIndex < 0
+        ? 0
+        : tab.currentSearchResultIndex;
+    _goToSearchResult(tab, currentIndex + delta);
+  }
+
+  String _searchStatusText(PdfTab tab) {
+    if (tab.isSearching) {
+      return '...';
+    }
+
+    if (tab.searchQuery.trim().isEmpty) {
+      return '';
+    }
+
+    if (tab.searchResults.isEmpty) {
+      return '0/0';
+    }
+
+    return '${tab.currentSearchResultIndex + 1}/${tab.searchResults.length}';
+  }
+
+  Widget _buildToolbarSearchToggle({
+    required PdfTab tab,
+    required bool compact,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: EdgeInsets.only(left: compact ? 0 : 6),
+      child: IconButton(
+        onPressed: () => _toggleSearchBar(tab),
+        tooltip: l10n.searchInDocument,
+        visualDensity: compact ? VisualDensity.compact : VisualDensity.standard,
+        splashRadius: compact ? 16 : 18,
+        constraints: BoxConstraints.tightFor(
+          width: compact ? 28 : 34,
+          height: compact ? 28 : 34,
+        ),
+        padding: EdgeInsets.zero,
+        icon: Icon(Icons.search_rounded, size: compact ? 20 : 21),
+      ),
+    );
+  }
+
+  Widget _buildBottomSearchBar({required PdfTab tab}) {
+    final l10n = AppLocalizations.of(context)!;
+    final controller = _searchControllerForTab(tab);
+    final focusNode = _searchFocusNodeForTab(tab);
+    final resultCount = tab.searchResults.length;
+    final canNavigate = !tab.isSearching && resultCount > 1;
+    final statusText = _searchStatusText(tab);
+    final statusTooltip = tab.searchQuery.trim().isEmpty
+        ? l10n.searchInDocument
+        : resultCount > 0
+        ? '$resultCount ${resultCount == 1 ? l10n.match : l10n.matches}'
+        : l10n.noMatchesFound;
+    const fieldTextStyle = TextStyle(
+      fontSize: 13.5,
+      fontWeight: FontWeight.w500,
+      color: Colors.black87,
+    );
+
+    Widget buildActionButton({
+      required IconData icon,
+      required String tooltip,
+      required VoidCallback? onPressed,
+    }) {
+      return IconButton(
+        onPressed: onPressed,
+        tooltip: tooltip,
+        visualDensity: VisualDensity.compact,
+        splashRadius: 16,
+        constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 18),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        height: 58,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.black.withValues(alpha: 0.12)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 34,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 26,
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  maxLines: 1,
+                  cursorWidth: 1.4,
+                  textInputAction: TextInputAction.search,
+                  style: fieldTextStyle.copyWith(height: 1.0),
+                  strutStyle: const StrutStyle(
+                    forceStrutHeight: true,
+                    height: 1.0,
+                  ),
+                  textAlignVertical: const TextAlignVertical(y: 0.18),
+                  decoration: InputDecoration(
+                    isCollapsed: true,
+                    border: InputBorder.none,
+                    hintText: l10n.searchPlaceholder,
+                    hintStyle: fieldTextStyle.copyWith(
+                      height: 1.0,
+                      fontWeight: FontWeight.w400,
+                      color: Colors.black.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  onChanged: (value) => _onSearchQueryChanged(tab, value),
+                  onEditingComplete: () {},
+                  onSubmitted: (_) {
+                    if (!tab.isSearching && tab.searchResults.isNotEmpty) {
+                      _navigateSearchResult(tab, 1);
+                    }
+                  },
+                ),
+              ),
+            ),
+            if (statusText.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              Tooltip(
+                message: statusTooltip,
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black.withValues(alpha: 0.42),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            buildActionButton(
+              icon: Icons.keyboard_arrow_up_rounded,
+              tooltip: l10n.previousResult,
+              onPressed: canNavigate
+                  ? () => _navigateSearchResult(tab, -1)
+                  : null,
+            ),
+            buildActionButton(
+              icon: Icons.keyboard_arrow_down_rounded,
+              tooltip: l10n.nextResult,
+              onPressed: canNavigate
+                  ? () => _navigateSearchResult(tab, 1)
+                  : null,
+            ),
+            const SizedBox(width: 4),
+            buildActionButton(
+              icon: Icons.close_rounded,
+              tooltip: l10n.close,
+              onPressed: () {
+                setState(() {
+                  _clearSearchState(tab, hideSearchBar: true);
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showErrorToast(String title, String message) {
@@ -624,6 +1517,7 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     });
 
     for (final tab in _tabs) {
+      _disposeSearchUiForTab(tab);
       tab.dispose();
     }
     setState(() {
@@ -724,6 +1618,7 @@ class _PdfViewerPageState extends State<PdfViewerPage>
   void _closeProject() {
     for (final tab in _tabs) {
       _saveCurrentState(tab);
+      _disposeSearchUiForTab(tab);
       tab.dispose();
     }
 
@@ -949,18 +1844,22 @@ class _PdfViewerPageState extends State<PdfViewerPage>
       return;
     }
 
-    final viewportCenter =
-        tab.scrollController.offset +
-        tab.scrollController.position.viewportDimension / 2;
-    final scaledPadding = _pageSpacing * tab.scale;
-
-    int newPage = 1;
-    for (int i = 0; i < tab.pageOffsets.length; i++) {
-      final scaledOffset = tab.pageOffsets[i] * tab.scale + scaledPadding;
-      if (scaledOffset <= viewportCenter) {
-        newPage = i + 1;
-      } else {
-        break;
+    final groupPages = _groupPageIndicesForTab(tab);
+    var newPage = 1;
+    if (groupPages != null) {
+      newPage = _currentPageInGroup(tab, groupPages);
+    } else {
+      final viewportCenter =
+          tab.scrollController.offset +
+          tab.scrollController.position.viewportDimension / 2;
+      final scaledPadding = _pageSpacing * tab.scale;
+      for (int i = 0; i < tab.pageOffsets.length; i++) {
+        final scaledOffset = tab.pageOffsets[i] * tab.scale + scaledPadding;
+        if (scaledOffset <= viewportCenter) {
+          newPage = i + 1;
+        } else {
+          break;
+        }
       }
     }
 
@@ -1215,9 +2114,9 @@ class _PdfViewerPageState extends State<PdfViewerPage>
         if (restoredPage > 1 && restoredPage <= pagesCount) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (tab.pageOffsets.isNotEmpty && tab.scrollController.hasClients) {
-              final targetOffset =
-                  tab.pageOffsets[restoredPage - 1] * tab.scale;
-              tab.scrollController.jumpTo(targetOffset);
+              tab.scrollController.jumpTo(
+                _scrollOffsetForPage(tab, restoredPage - 1),
+              );
             }
           });
         }
@@ -1958,12 +2857,13 @@ class _PdfViewerPageState extends State<PdfViewerPage>
       return;
     }
 
-    final targetOffset = tab.pageOffsets[pageNumber - 1] * tab.scale;
-    tab.scrollController.animateTo(
-      targetOffset,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+    if (tab.scrollController.hasClients) {
+      tab.scrollController.animateTo(
+        _scrollOffsetForPage(tab, pageNumber - 1),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
 
     if (Navigator.canPop(context)) {
       Navigator.of(context).pop();
@@ -2074,6 +2974,8 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     });
   }
 
+  StateSetter? _dialogSetState;
+
   void _openNavigationDrawerAsDialog(PdfTab tab) {
     showGeneralDialog(
       context: context,
@@ -2101,7 +3003,12 @@ class _PdfViewerPageState extends State<PdfViewerPage>
               height: drawerHeight,
               child: Material(
                 elevation: 16,
-                child: _buildNavigationDrawer(tab),
+                child: StatefulBuilder(
+                  builder: (dialogContext, setDialogState) {
+                    _dialogSetState = setDialogState;
+                    return _buildNavigationDrawer(tab);
+                  },
+                ),
               ),
             ),
           ),
@@ -2116,10 +3023,13 @@ class _PdfViewerPageState extends State<PdfViewerPage>
           child: child,
         );
       },
-    );
+    ).then((_) {
+      _dialogSetState = null;
+    });
   }
 
   Widget _buildNavigationDrawer(PdfTab tab) {
+    final groupsKey = _documentGroupsKeyForTab(tab);
     return PdfNavigationDrawer(
       totalPages: tab.totalPages,
       currentPage: tab.currentPage,
@@ -2129,8 +3039,8 @@ class _PdfViewerPageState extends State<PdfViewerPage>
       onRequestThumbnail: (pageIndex, width, height) =>
           _ensureThumbnailRendered(tab, pageIndex, width, height),
       visibilityKeyPrefix: tab.id,
-      groups: _documentGroups[tab.filePath]?.groups ?? [],
-      activeGroupId: _documentGroups[tab.filePath]?.activeGroupId,
+      groups: _documentGroups[groupsKey]?.groups ?? [],
+      activeGroupId: _documentGroups[groupsKey]?.activeGroupId,
       onCreateGroup: () => _createGroup(tab),
       onEditGroup: (group) => _editGroup(group, tab),
       onDeleteGroup: (groupId) => _deleteGroup(groupId, tab),
@@ -2152,6 +3062,7 @@ class _PdfViewerPageState extends State<PdfViewerPage>
       _projectService.updateProject(_currentProject!);
     }
 
+    _disposeSearchUiForTab(tab);
     tab.dispose();
 
     _rerenderTimers.remove(tab.id)?.cancel();
@@ -2171,6 +3082,7 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     final index = _tabs.indexOf(tab);
     if (index == -1) return;
 
+    _disposeSearchUiForTab(tab);
     tab.dispose();
     _rerenderTimers.remove(tab.id)?.cancel();
     _pendingRerenderScales.remove(tab.id);
@@ -2215,9 +3127,10 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     final groups = await _pageGroupService.getDocumentGroupsByIdentifier(
       tab.fileIdentifier!,
     );
+    final groupsKey = _documentGroupsKeyForTab(tab);
     if (mounted) {
       setState(() {
-        _documentGroups[tab.filePath] =
+        _documentGroups[groupsKey] =
             groups ?? DocumentGroups(filePath: tab.filePath);
       });
     }
@@ -2233,7 +3146,8 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     );
 
     if (result != null) {
-      var docGroups = _documentGroups[tab.filePath];
+      final groupsKey = _documentGroupsKeyForTab(tab);
+      var docGroups = _documentGroups[groupsKey];
       docGroups ??= DocumentGroups(filePath: tab.filePath);
 
       docGroups.addGroup(result);
@@ -2241,11 +3155,11 @@ class _PdfViewerPageState extends State<PdfViewerPage>
         tab.fileIdentifier!,
         docGroups,
       );
+      await _loadDocumentGroups(tab);
+      _refreshSearchForTab(tab);
 
       if (mounted) {
-        setState(() {
-          _documentGroups[tab.filePath] = docGroups!;
-        });
+        _dialogSetState?.call(() {});
       }
     }
   }
@@ -2263,6 +3177,8 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     if (result != null) {
       await _pageGroupService.updateGroup(tab.fileIdentifier!, result);
       await _loadDocumentGroups(tab);
+      _refreshSearchForTab(tab);
+      _dialogSetState?.call(() {});
     }
   }
 
@@ -2272,13 +3188,16 @@ class _PdfViewerPageState extends State<PdfViewerPage>
 
     await _pageGroupService.deleteGroup(tab.fileIdentifier!, groupId);
     await _loadDocumentGroups(tab);
+    _refreshSearchForTab(tab);
+    _dialogSetState?.call(() {});
   }
 
   Future<void> _selectGroup(String? groupId, [PdfTab? targetTab]) async {
     final tab = targetTab ?? _activeTab;
     if (tab == null || tab.fileIdentifier == null) return;
 
-    var docGroups = _documentGroups[tab.filePath];
+    final groupsKey = _documentGroupsKeyForTab(tab);
+    var docGroups = _documentGroups[groupsKey];
     if (docGroups == null) {
       docGroups = DocumentGroups(filePath: tab.filePath);
     }
@@ -2291,8 +3210,9 @@ class _PdfViewerPageState extends State<PdfViewerPage>
 
     if (mounted) {
       setState(() {
-        _documentGroups[tab.filePath] = docGroups!;
+        _documentGroups[groupsKey] = docGroups!;
       });
+      _dialogSetState?.call(() {});
 
       if (groupId != null) {
         final activeGroup = docGroups.activeGroup;
@@ -2301,6 +3221,8 @@ class _PdfViewerPageState extends State<PdfViewerPage>
         }
       }
     }
+
+    _refreshSearchForTab(tab);
   }
 
   @override
@@ -2313,6 +3235,7 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     }
     _rotationMenuOverlays.clear();
     for (var tab in _tabs) {
+      _disposeSearchUiForTab(tab);
       tab.dispose();
     }
     for (final timer in _rerenderTimers.values) {
@@ -2343,10 +3266,7 @@ class _PdfViewerPageState extends State<PdfViewerPage>
         CustomTitleBar(
           projectName: _currentProject?.name,
           centerTitle: isSplitActive ? l10n.splitView : null,
-          onCenterTitleTap: isSplitActive
-              ? (globalPosition) =>
-                    _showSplitViewMenu(globalPosition, tab!, splitTab)
-              : null,
+          onCenterTitleTap: isSplitActive ? _handleSplitTitleTap : null,
         ),
 
         Expanded(
@@ -2399,289 +3319,405 @@ class _PdfViewerPageState extends State<PdfViewerPage>
               final effectiveActions = isSplitActive
                   ? const <Widget>[]
                   : (appBarActions.isEmpty ? null : appBarActions);
+              final showSplitDragTip =
+                  _tabs.length > 1 &&
+                  _isTabBarExpanded &&
+                  !isSplitActive &&
+                  !_isSplitViewDragTipDismissed;
+              final showSplitMenuTip =
+                  isSplitActive && !_isSplitViewMenuTipDismissed;
+              final screenHeight = MediaQuery.of(context).size.height;
+              final tabsPanelTop = max((screenHeight - 420) / 2, 60.0);
 
-              return Scaffold(
-                appBar: AppBar(
-                  automaticallyImplyLeading: false,
-                  leading: isPdfLoaded && !isSplitActive
-                      ? Builder(
-                          builder: (ctx) => IconButton(
-                            icon: const Icon(Icons.menu),
-                            tooltip: l10n.pageNavigation,
-                            onPressed: () => _openNavigationDrawer(
-                              ctx,
-                              tab,
-                              isEndDrawer: false,
-                            ),
-                          ),
-                        )
-                      : null,
-                  title: isPdfLoaded && isSplitActive
-                      ? _buildSplitAppBarContent(
-                          leftTab: tab,
-                          rightTab: splitTab,
-                        )
-                      : null,
-                  titleSpacing: isPdfLoaded && isSplitActive ? 0 : null,
-                  elevation: isPdfLoaded ? null : 0,
-                  backgroundColor: isPdfLoaded
-                      ? null
-                      : Theme.of(context).scaffoldBackgroundColor,
-                  actions: effectiveActions,
-                ),
-                drawer: isPdfLoaded ? _buildNavigationDrawer(tab) : null,
-                endDrawer: null,
-                body: DropTarget(
-                  onDragDone: (details) {
-                    setState(() {
-                      _isDragging = false;
-                    });
-                    for (final file in details.files) {
-                      final path = file.path;
-                      if (path.toLowerCase().endsWith('.pdf')) {
-                        _openFile(path);
-                      }
-                    }
-                  },
-                  onDragEntered: (details) {
-                    setState(() {
-                      _isDragging = true;
-                    });
-                  },
-                  onDragExited: (details) {
-                    setState(() {
-                      _isDragging = false;
-                    });
-                  },
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      DragTarget<int>(
-                        onWillAcceptWithDetails: (details) {
-                          if (details.data != _currentTabIndex &&
-                              details.data >= 0 &&
-                              details.data < _tabs.length &&
-                              _splitTabIndex == null) {
-                            setState(() {
-                              _splitDropZoneActive = true;
-                            });
-                            return true;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Scaffold(
+                    appBar: AppBar(
+                      automaticallyImplyLeading: false,
+                      leading: isPdfLoaded && !isSplitActive
+                          ? Builder(
+                              builder: (ctx) => IconButton(
+                                icon: const Icon(Icons.menu),
+                                tooltip: l10n.pageNavigation,
+                                onPressed: () => _openNavigationDrawer(
+                                  ctx,
+                                  tab,
+                                  isEndDrawer: false,
+                                ),
+                              ),
+                            )
+                          : null,
+                      title: isPdfLoaded && isSplitActive
+                          ? _buildSplitAppBarContent(
+                              leftTab: tab,
+                              rightTab: splitTab,
+                            )
+                          : (isPdfLoaded
+                                ? (tab.isSearchVisible
+                                      ? const SizedBox.shrink()
+                                      : _buildToolbarSearchToggle(
+                                          tab: tab,
+                                          compact: false,
+                                        ))
+                                : null),
+                      titleSpacing: isPdfLoaded ? 0 : null,
+                      elevation: isPdfLoaded ? null : 0,
+                      backgroundColor: isPdfLoaded
+                          ? null
+                          : Theme.of(context).scaffoldBackgroundColor,
+                      actions: effectiveActions,
+                    ),
+                    drawer: isPdfLoaded ? _buildNavigationDrawer(tab) : null,
+                    endDrawer: null,
+                    body: DropTarget(
+                      onDragDone: (details) {
+                        setState(() {
+                          _isDragging = false;
+                        });
+                        for (final file in details.files) {
+                          final path = file.path;
+                          if (path.toLowerCase().endsWith('.pdf')) {
+                            _openFile(path);
                           }
-                          return false;
-                        },
-                        onLeave: (_) {
-                          setState(() {
-                            _splitDropZoneActive = false;
-                          });
-                        },
-                        onAcceptWithDetails: (details) {
-                          setState(() {
-                            _splitTabIndex = details.data;
-                            _splitDropZoneActive = false;
-                          });
-                        },
-                        builder: (context, candidateData, rejectedData) {
-                          return Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              buildBody(),
-                              if (_splitDropZoneActive)
-                                Positioned.fill(
-                                  child: Container(
-                                    color: Theme.of(
-                                      context,
-                                    ).primaryColor.withValues(alpha: 0.1),
-                                    child: Center(
+                        }
+                      },
+                      onDragEntered: (details) {
+                        setState(() {
+                          _isDragging = true;
+                        });
+                      },
+                      onDragExited: (details) {
+                        setState(() {
+                          _isDragging = false;
+                        });
+                      },
+                      child: Stack(
+                        fit: StackFit.expand,
+                        clipBehavior: Clip.none,
+                        children: [
+                          DragTarget<int>(
+                            onWillAcceptWithDetails: (details) {
+                              if (details.data != _currentTabIndex &&
+                                  details.data >= 0 &&
+                                  details.data < _tabs.length &&
+                                  _splitTabIndex == null) {
+                                setState(() {
+                                  _splitDropZoneActive = true;
+                                });
+                                return true;
+                              }
+                              return false;
+                            },
+                            onLeave: (_) {
+                              setState(() {
+                                _splitDropZoneActive = false;
+                              });
+                            },
+                            onAcceptWithDetails: (details) {
+                              setState(() {
+                                _splitTabIndex = details.data;
+                                _splitDropZoneActive = false;
+                              });
+                            },
+                            builder: (context, candidateData, rejectedData) {
+                              return Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  buildBody(),
+                                  if (_splitDropZoneActive)
+                                    Positioned.fill(
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 32,
-                                          vertical: 16,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                        color: Theme.of(
+                                          context,
+                                        ).primaryColor.withValues(alpha: 0.1),
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 32,
+                                              vertical: 16,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.15),
+                                                  blurRadius: 20,
+                                                ),
+                                              ],
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.vertical_split_rounded,
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).primaryColor,
+                                                  size: 28,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  l10n.splitView,
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Theme.of(
+                                                      context,
+                                                    ).primaryColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.15,
-                                              ),
-                                              blurRadius: 20,
-                                            ),
-                                          ],
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.vertical_split_rounded,
-                                              color: Theme.of(
-                                                context,
-                                              ).primaryColor,
-                                              size: 28,
+                                      ),
+                                    ),
+                                  if (_tabs.isNotEmpty &&
+                                      !_isLoadingProject &&
+                                      !isSplitActive &&
+                                      (tab == null || !tab.isLoading))
+                                    Positioned.fill(
+                                      child: PdfTabBar(
+                                        tabs: _tabs,
+                                        selectedIndex: _currentTabIndex,
+                                        onTabSelected: (index) {
+                                          setState(() {
+                                            _currentTabIndex = index;
+                                          });
+                                        },
+                                        onTabClosed: _closeTab,
+                                        onReorder: _onReorderTabs,
+                                        onNewTab: _openPdfFile,
+                                        isExpanded: _isTabBarExpanded,
+                                        searchBarVisible:
+                                            (tab?.isSearchVisible ?? false) ||
+                                            (splitTab?.isSearchVisible ?? false),
+                                        onToggleExpand: () {
+                                          setState(() {
+                                            _isTabBarExpanded =
+                                                !_isTabBarExpanded;
+                                          });
+                                        },
+                                        onRenameTab: (index, newName) {
+                                          _applyTabRename(
+                                            _tabs[index],
+                                            newName,
+                                          );
+                                        },
+                                        onShowInfo: (index) {
+                                          final targetTab = _tabs[index];
+                                          showDialog(
+                                            context: context,
+                                            builder: (ctx) =>
+                                                DocumentInfoDialog(
+                                                  documentTitle:
+                                                      targetTab.documentTitle,
+                                                  filePath: targetTab.filePath,
+                                                  totalPages:
+                                                      targetTab.totalPages,
+                                                  pageSizes:
+                                                      targetTab.pageSizes,
+                                                  metadata: targetTab.metadata,
+                                                ),
+                                          );
+                                        },
+                                        isProjectMode: _isProjectMode,
+                                        projectName: _currentProject?.name,
+                                        onCloseProject: _closeProject,
+                                      ),
+                                    ),
+                                  Positioned(
+                                    right: 336,
+                                    top: tabsPanelTop + 132,
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 260,
+                                      ),
+                                      switchInCurve: Curves.easeOutCubic,
+                                      switchOutCurve: Curves.easeInCubic,
+                                      transitionBuilder: (child, animation) {
+                                        final slide = Tween<Offset>(
+                                          begin: const Offset(0.08, 0),
+                                          end: Offset.zero,
+                                        ).animate(animation);
+                                        return FadeTransition(
+                                          opacity: animation,
+                                          child: SlideTransition(
+                                            position: slide,
+                                            child: ScaleTransition(
+                                              scale: Tween<double>(
+                                                begin: 0.96,
+                                                end: 1,
+                                              ).animate(animation),
+                                              child: child,
                                             ),
-                                            const SizedBox(width: 12),
-                                            Text(
-                                              l10n.splitView,
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Theme.of(
-                                                  context,
-                                                ).primaryColor,
+                                          ),
+                                        );
+                                      },
+                                      child: showSplitDragTip
+                                          ? _TipCard(
+                                              key: const ValueKey(
+                                                'split_view_drag_tip',
                                               ),
+                                              message: l10n.splitViewDragTip,
+                                              arrowSide: _TipArrowSide.right,
+                                              onClose: _dismissSplitViewDragTip,
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              ignoring: !_isDragging,
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                opacity: _isDragging ? 1 : 0,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Theme.of(
+                                          context,
+                                        ).primaryColor.withValues(alpha: 0.16),
+                                        Theme.of(context)
+                                            .scaffoldBackgroundColor
+                                            .withValues(alpha: 0.92),
+                                      ],
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: AnimatedSlide(
+                                      duration: const Duration(
+                                        milliseconds: 220,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      offset: _isDragging
+                                          ? Offset.zero
+                                          : const Offset(0, 0.03),
+                                      child: AnimatedScale(
+                                        duration: const Duration(
+                                          milliseconds: 220,
+                                        ),
+                                        curve: Curves.easeOutCubic,
+                                        scale: _isDragging ? 1 : 0.97,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 32,
+                                            vertical: 28,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).cardColor,
+                                            borderRadius: BorderRadius.circular(
+                                              20,
                                             ),
-                                          ],
+                                            border: Border.all(
+                                              color: AppColors.primaryBlue
+                                                  .withValues(alpha: 0.55),
+                                              width: 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.12,
+                                                ),
+                                                blurRadius: 28,
+                                                offset: const Offset(0, 18),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 72,
+                                                height: 72,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.primaryBlue
+                                                      .withValues(alpha: 0.12),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.file_download_outlined,
+                                                  size: 36,
+                                                  color: AppColors.primaryBlue,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 18),
+                                              Text(
+                                                l10n.dropFileHere,
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              if (_tabs.isNotEmpty &&
-                                  !_isLoadingProject &&
-                                  !isSplitActive &&
-                                  (tab == null || !tab.isLoading))
-                                Positioned.fill(
-                                  child: PdfTabBar(
-                                    tabs: _tabs,
-                                    selectedIndex: _currentTabIndex,
-                                    onTabSelected: (index) {
-                                      setState(() {
-                                        _currentTabIndex = index;
-                                      });
-                                    },
-                                    onTabClosed: _closeTab,
-                                    onReorder: _onReorderTabs,
-                                    onNewTab: _openPdfFile,
-                                    isExpanded: _isTabBarExpanded,
-                                    onToggleExpand: () {
-                                      setState(() {
-                                        _isTabBarExpanded = !_isTabBarExpanded;
-                                      });
-                                    },
-                                    onRenameTab: (index, newName) {
-                                      _applyTabRename(_tabs[index], newName);
-                                    },
-                                    onShowInfo: (index) {
-                                      final targetTab = _tabs[index];
-                                      showDialog(
-                                        context: context,
-                                        builder: (ctx) => DocumentInfoDialog(
-                                          documentTitle:
-                                              targetTab.documentTitle,
-                                          filePath: targetTab.filePath,
-                                          totalPages: targetTab.totalPages,
-                                          pageSizes: targetTab.pageSizes,
-                                          metadata: targetTab.metadata,
-                                        ),
-                                      );
-                                    },
-                                    isProjectMode: _isProjectMode,
-                                    projectName: _currentProject?.name,
-                                    onCloseProject: _closeProject,
-                                  ),
-                                ),
-                            ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) {
+                          final slide = Tween<Offset>(
+                            begin: const Offset(0, -0.08),
+                            end: Offset.zero,
+                          ).animate(animation);
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: slide,
+                              child: ScaleTransition(
+                                scale: Tween<double>(
+                                  begin: 0.96,
+                                  end: 1,
+                                ).animate(animation),
+                                child: child,
+                              ),
+                            ),
                           );
                         },
+                        child: showSplitMenuTip
+                            ? _TipCard(
+                                key: const ValueKey('split_view_menu_tip'),
+                                message: l10n.splitViewMenuTip,
+                                arrowSide: _TipArrowSide.top,
+                                onClose: _dismissSplitViewMenuTip,
+                              )
+                            : const SizedBox.shrink(),
                       ),
-
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          ignoring: !_isDragging,
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                            opacity: _isDragging ? 1 : 0,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Theme.of(
-                                      context,
-                                    ).primaryColor.withValues(alpha: 0.16),
-                                    Theme.of(context).scaffoldBackgroundColor
-                                        .withValues(alpha: 0.92),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: AnimatedSlide(
-                                  duration: const Duration(milliseconds: 220),
-                                  curve: Curves.easeOutCubic,
-                                  offset: _isDragging
-                                      ? Offset.zero
-                                      : const Offset(0, 0.03),
-                                  child: AnimatedScale(
-                                    duration: const Duration(milliseconds: 220),
-                                    curve: Curves.easeOutCubic,
-                                    scale: _isDragging ? 1 : 0.97,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 32,
-                                        vertical: 28,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).cardColor,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: AppColors.primaryBlue
-                                              .withValues(alpha: 0.55),
-                                          width: 1.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.12,
-                                            ),
-                                            blurRadius: 28,
-                                            offset: const Offset(0, 18),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 72,
-                                            height: 72,
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primaryBlue
-                                                  .withValues(alpha: 0.12),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: const Icon(
-                                              Icons.file_download_outlined,
-                                              size: 36,
-                                              color: AppColors.primaryBlue,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 18),
-                                          Text(
-                                            l10n.dropFileHere,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               );
             },
           ),
@@ -2733,6 +3769,15 @@ class _PdfViewerPageState extends State<PdfViewerPage>
         ? Colors.white.withValues(alpha: 0.1)
         : Colors.black.withValues(alpha: 0.1);
     return Container(width: 1, color: lineColor);
+  }
+
+  void _handleSplitTitleTap(Offset globalPosition) {
+    final leftTab = _activeTab;
+    final rightTab = _splitTab;
+    if (leftTab == null || rightTab == null) {
+      return;
+    }
+    _showSplitViewMenu(globalPosition, leftTab, rightTab);
   }
 
   void _showSplitViewMenu(
@@ -2892,6 +3937,10 @@ class _PdfViewerPageState extends State<PdfViewerPage>
           ),
         ),
         const SizedBox(width: 2),
+        if (!tab.isSearchVisible) ...[
+          _buildToolbarSearchToggle(tab: tab, compact: true),
+          const SizedBox(width: 4),
+        ],
         Expanded(child: _buildSplitTitle(tab)),
         const SizedBox(width: 4),
         IconButton(
@@ -2928,23 +3977,27 @@ class _PdfViewerPageState extends State<PdfViewerPage>
     final displayName = _getTabDisplayName(tab);
 
     if (isEditing) {
-      return TextField(
-        controller: _splitRenameController,
-        autofocus: true,
-        maxLines: 1,
-        textAlignVertical: TextAlignVertical.center,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.grey.shade800,
+      return Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: TextField(
+          controller: _splitRenameController,
+          autofocus: true,
+          maxLines: 1,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade800,
+          ),
+          decoration: const InputDecoration(
+            isDense: true,
+            isCollapsed: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+          ),
+          onSubmitted: (_) => _commitSplitRename(tab),
+          onTapOutside: (_) => _commitSplitRename(tab),
         ),
-        decoration: const InputDecoration(
-          isDense: true,
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.zero,
-        ),
-        onSubmitted: (_) => _commitSplitRename(tab),
-        onTapOutside: (_) => _commitSplitRename(tab),
       );
     }
 
@@ -4109,19 +5162,13 @@ class _PdfViewerPageState extends State<PdfViewerPage>
       return const Center(child: Text('Document not loaded'));
     }
 
-    final docGroups = _documentGroups[tab.filePath];
+    final docGroups = _documentGroups[_documentGroupsKeyForTab(tab)];
     final activeGroup = docGroups?.activeGroup;
 
-    List<int>? visiblePageIndices;
-    if (activeGroup != null && activeGroup.pages.isNotEmpty) {
-      visiblePageIndices = activeGroup.pageNumbers
-          .where((p) => p >= 1 && p <= tab.totalPages)
-          .map((p) => p - 1)
-          .toList();
-    }
+    final visiblePageIndices = _groupPageIndicesForTab(tab);
 
-    final displayCurrentPage = activeGroup != null && visiblePageIndices != null
-        ? (visiblePageIndices.indexOf(tab.currentPage - 1) + 1)
+    final displayCurrentPage = visiblePageIndices != null
+        ? _displayPageNumberInGroup(tab.currentPage, visiblePageIndices)
         : tab.currentPage;
     final displayTotalPages = visiblePageIndices?.length ?? tab.totalPages;
 
@@ -4183,6 +5230,8 @@ class _PdfViewerPageState extends State<PdfViewerPage>
                             tileScaleThreshold: _tileScaleThreshold,
                             tileSize: _tileSize,
                             visibilityKeyPrefix: tab.id,
+                            searchResultsByPage: tab.searchResultsByPage,
+                            activeSearchMatch: _activeSearchMatchForTab(tab),
                             onRequestRender: (pageIndex, renderScale) =>
                                 _ensurePageRendered(
                                   tab,
@@ -4203,8 +5252,7 @@ class _PdfViewerPageState extends State<PdfViewerPage>
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOutCubicEmphasized,
           bottom: 20,
-
-          left: 20,
+          left: tab.isSearchVisible ? -220 : 20,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
@@ -4227,6 +5275,38 @@ class _PdfViewerPageState extends State<PdfViewerPage>
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ],
+            ),
+          ),
+        ),
+        Positioned(
+          left: 20,
+          right: 20,
+          bottom: 12,
+          child: IgnorePointer(
+            ignoring: !tab.isSearchVisible,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final slide = Tween<Offset>(
+                  begin: const Offset(0, 0.18),
+                  end: Offset.zero,
+                ).animate(animation);
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: slide,
+                    child: child,
+                  ),
+                );
+              },
+              child: tab.isSearchVisible
+                  ? Center(
+                      key: ValueKey('search_bar_${tab.id}'),
+                      child: _buildBottomSearchBar(tab: tab),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
         ),

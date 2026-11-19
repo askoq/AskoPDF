@@ -29,10 +29,17 @@ class PdfTab {
 
   PdfDocumentHandle? document;
   int renderGeneration = 0;
+  int searchGeneration = 0;
 
   bool isLoading = true;
   double loadingProgress = 0.0;
   String loadingMessage = 'Initializing...';
+  bool isSearchVisible = false;
+  bool isSearching = false;
+  String searchQuery = '';
+  List<PdfSearchMatch> searchResults = [];
+  Map<int, List<PdfSearchMatch>> searchResultsByPage = {};
+  int currentSearchResultIndex = -1;
 
   List<ui.Image?> renderedPages = [];
   List<ui.Image?> thumbnails = [];
@@ -69,6 +76,13 @@ class PdfTab {
     pageRotations = [];
     pageRenderScales = [];
     renderedPageOrder.clear();
+    searchGeneration = 0;
+    isSearchVisible = false;
+    isSearching = false;
+    searchQuery = '';
+    searchResults = [];
+    searchResultsByPage = {};
+    currentSearchResultIndex = -1;
     totalPages = 0;
     currentPage = 1;
     pendingPageRenders.clear();

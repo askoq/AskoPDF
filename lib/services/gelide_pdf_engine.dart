@@ -19,6 +19,28 @@ class GelideEngineUnavailableException implements Exception {
   String toString() => details;
 }
 
+List<PdfSearchMatch> nonOverlappingSearchMatches(
+  int pageIndex,
+  List<SearchMatch> matches,
+) {
+  final sorted = [...matches]
+    ..sort((a, b) => a.startIndex.compareTo(b.startIndex));
+  final results = <PdfSearchMatch>[];
+  var previousEnd = -1;
+  for (final match in sorted) {
+    if (match.startIndex < previousEnd) continue;
+    previousEnd = match.endIndex;
+    results.add(
+      PdfSearchMatch(
+        pageIndex: pageIndex,
+        text: match.text,
+        rects: match.rects,
+      ),
+    );
+  }
+  return results;
+}
+
 class GelidePdfEngine implements PdfEngine {
   bool _initialized = false;
 
@@ -140,6 +162,22 @@ class GelidePdfDocument implements PdfDocumentHandle {
       fullWidth: fullWidth,
       fullHeight: fullHeight,
     );
+  }
+
+  @override
+  Future<List<PdfSearchMatch>> searchText(
+    int pageIndex,
+    String query, {
+    bool caseSensitive = false,
+  }) async {
+    if (query.isEmpty) return const [];
+
+    final matches = await _pdf.search(
+      pageIndex,
+      query,
+      caseSensitive: caseSensitive,
+    );
+    return nonOverlappingSearchMatches(pageIndex, matches);
   }
 
   @override

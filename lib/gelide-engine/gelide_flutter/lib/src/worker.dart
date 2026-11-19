@@ -5,6 +5,7 @@ const String _workerOperationClose = 'close';
 const String _workerOperationRenderPage = 'renderPage';
 const String _workerOperationRenderPageSized = 'renderPageSized';
 const String _workerOperationRenderTile = 'renderTile';
+const String _workerOperationSearch = 'search';
 const String _workerOperationShutdown = 'shutdown';
 
 class _WorkerDocumentDescriptor {
@@ -270,6 +271,45 @@ class _GelideWorkerClient {
     return _decodeRenderedBytes(result);
   }
 
+  Future<List<SearchMatch>> search(
+    int documentId,
+    int pageIndex,
+    String query, {
+    bool caseSensitive = false,
+  }) async {
+    final result = await _request(
+      _workerOperationSearch,
+      <String, Object?>{
+        'documentId': documentId,
+        'pageIndex': pageIndex,
+        'query': query,
+        'caseSensitive': caseSensitive,
+      },
+    );
+    final matches = result as List<dynamic>? ?? const <dynamic>[];
+    return matches.map((dynamic rawMatch) {
+      final match = (rawMatch as Map).cast<Object?, Object?>();
+      final values = match['rects'] as List<dynamic>? ?? const <dynamic>[];
+      final rects = <Rect>[];
+      for (var i = 0; i + 3 < values.length; i += 4) {
+        rects.add(
+          Rect.fromLTRB(
+            (values[i] as num).toDouble(),
+            (values[i + 1] as num).toDouble(),
+            (values[i + 2] as num).toDouble(),
+            (values[i + 3] as num).toDouble(),
+          ),
+        );
+      }
+      return SearchMatch(
+        text: match['text']?.toString() ?? '',
+        startIndex: match['start'] as int? ?? 0,
+        endIndex: match['end'] as int? ?? 0,
+        rects: List<Rect>.unmodifiable(rects),
+      );
+    }).toList(growable: false);
+  }
+
   Future<void> shutdown() {
     final existing = _shutdownFuture;
     if (existing != null) return existing;
@@ -427,6 +467,21 @@ Future<void> _gelideWorkerMain(Map<String, Object?> bootstrap) async {
               message['fullHeight']! as int,
             );
             result = _encodeRenderedBytes(rendered);
+            break;
+          case _workerOperationSearch:
+            final matches = _requireWorkerDocument(document).search(
+              message['pageIndex']! as int,
+              message['query']! as String,
+              caseSensitive: message['caseSensitive'] == true,
+            );
+            result = matches
+                .map((match) => <String, Object?>{
+                      'text': match.text,
+                      'start': match.startIndex,
+                      'end': match.endIndex,
+                      'rects': match.rects,
+                    })
+                .toList(growable: false);
             break;
           case _workerOperationShutdown:
             requests.close();

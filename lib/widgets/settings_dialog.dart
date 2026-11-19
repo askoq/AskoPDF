@@ -723,7 +723,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              '1.5.0',
+              '1.5.5',
               style: TextStyle(
                 fontSize: 13,
                 color: Colors.grey.shade600,

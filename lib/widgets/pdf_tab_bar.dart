@@ -12,6 +12,7 @@ class PdfTabBar extends StatefulWidget {
   final Function(int, int) onReorder;
   final VoidCallback onNewTab;
   final bool isExpanded;
+  final bool searchBarVisible;
   final VoidCallback onToggleExpand;
   final Function(int, String)? onRenameTab;
   final Function(int)? onShowInfo;
@@ -28,6 +29,7 @@ class PdfTabBar extends StatefulWidget {
     required this.onReorder,
     required this.onNewTab,
     required this.isExpanded,
+    required this.searchBarVisible,
     required this.onToggleExpand,
     this.onRenameTab,
     this.onShowInfo,
@@ -108,8 +110,10 @@ class _PdfTabBarState extends State<PdfTabBar> {
           child: _buildPanel(context, l10n),
         ),
 
-        Positioned(
-          right: 16,
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          right: widget.searchBarVisible ? -84 : 16,
           bottom: 16,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,

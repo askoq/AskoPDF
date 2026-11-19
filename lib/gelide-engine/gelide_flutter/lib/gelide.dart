@@ -297,6 +297,21 @@ class GelidePdf {
     return _bytesToImage(rendered.data, rendered.width, rendered.height);
   }
 
+  Future<List<SearchMatch>> search(
+    int pageIndex,
+    String query, {
+    bool caseSensitive = false,
+  }) {
+    _checkOpen();
+    _checkPageIndex(pageIndex);
+    return _worker.search(
+      _documentId,
+      pageIndex,
+      query,
+      caseSensitive: caseSensitive,
+    );
+  }
+
   void dispose() {
     if (_closed) return;
     _closed = true;
@@ -329,6 +344,20 @@ class GelidePdf {
     );
     return completer.future;
   }
+}
+
+class SearchMatch {
+  final String text;
+  final int startIndex;
+  final int endIndex;
+  final List<Rect> rects;
+
+  const SearchMatch({
+    required this.text,
+    required this.startIndex,
+    required this.endIndex,
+    required this.rects,
+  });
 }
 
 class PageSize {

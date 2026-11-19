@@ -2,6 +2,18 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+class PdfSearchMatch {
+  final int pageIndex;
+  final String text;
+  final List<Rect> rects;
+
+  const PdfSearchMatch({
+    required this.pageIndex,
+    required this.text,
+    required this.rects,
+  });
+}
+
 abstract class PdfEngine {
   Future<void> init();
   Future<PdfDocumentHandle> openDocument(String path);
@@ -21,6 +33,11 @@ abstract class PdfDocumentHandle {
     required int height,
     required int fullWidth,
     required int fullHeight,
+  });
+  Future<List<PdfSearchMatch>> searchText(
+    int pageIndex,
+    String query, {
+    bool caseSensitive = false,
   });
   bool get supportsTileRendering;
   String? get title;

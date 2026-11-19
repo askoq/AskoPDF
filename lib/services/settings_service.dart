@@ -6,6 +6,10 @@ class SettingsService {
   static const String _keyCopyPageAsImage = 'copy_page_as_image_enabled';
   static const String _keyLanguage = 'app_language';
   static const String _keyZoomAnimation = 'zoom_animation_enabled';
+  static const String _keySplitViewDragTipDismissed =
+      'split_view_drag_tip_dismissed';
+  static const String _keySplitViewMenuTipDismissed =
+      'split_view_menu_tip_dismissed';
 
   static final ValueNotifier<Locale> localeNotifier = ValueNotifier(
     const Locale('en'),
@@ -55,5 +59,25 @@ class SettingsService {
   Future<void> setZoomAnimationEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyZoomAnimation, enabled);
+  }
+
+  Future<bool> getSplitViewDragTipDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keySplitViewDragTipDismissed) ?? false;
+  }
+
+  Future<void> setSplitViewDragTipDismissed(bool dismissed) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySplitViewDragTipDismissed, dismissed);
+  }
+
+  Future<bool> getSplitViewMenuTipDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keySplitViewMenuTipDismissed) ?? false;
+  }
+
+  Future<void> setSplitViewMenuTipDismissed(bool dismissed) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySplitViewMenuTipDismissed, dismissed);
   }
 }

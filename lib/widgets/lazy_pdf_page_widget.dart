@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -22,6 +23,8 @@ class LazyPdfPageWidget extends StatefulWidget {
   final int tileSize;
   final Key visibilityKey;
   final ScrollController? scrollController;
+  final List<PdfSearchMatch> searchMatches;
+  final PdfSearchMatch? activeSearchMatch;
 
   const LazyPdfPageWidget({
     super.key,
@@ -39,6 +42,8 @@ class LazyPdfPageWidget extends StatefulWidget {
     required this.tileSize,
     required this.visibilityKey,
     this.scrollController,
+    this.searchMatches = const [],
+    this.activeSearchMatch,
   });
 
   @override
@@ -88,7 +93,23 @@ class _LazyPdfPageWidgetState extends State<LazyPdfPageWidget> {
             );
     }
 
-    final pageContent = content;
+    final pageContent = Stack(
+      fit: StackFit.expand,
+      children: [
+        content,
+        if (widget.searchMatches.isNotEmpty)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: PdfSearchHighlightsPainter(
+                  matches: widget.searchMatches,
+                  activeMatch: widget.activeSearchMatch,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
 
     return VisibilityDetector(
       key: widget.visibilityKey,
@@ -333,4 +354,84 @@ class TilePainter extends CustomPainter {
       displayScale != oldDelegate.displayScale ||
       tiles.length != oldDelegate.tiles.length ||
       drawPlaceholders != oldDelegate.drawPlaceholders;
+}
+
+class PdfSearchHighlightsPainter extends CustomPainter {
+  final List<PdfSearchMatch> matches;
+  final PdfSearchMatch? activeMatch;
+
+  PdfSearchHighlightsPainter({
+    required this.matches,
+    required this.activeMatch,
+  });
+
+  static const Color _matchColor = Color(0xFFFFD54F);
+  static const Color _activeColor = Color(0xFFFF9800);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (matches.isEmpty || size.isEmpty) return;
+
+    final inactiveRects = <Rect>[];
+    final activeRects = <Rect>[];
+    for (final match in matches) {
+      final target =
+          identical(match, activeMatch) ? activeRects : inactiveRects;
+      for (final rect in match.rects) {
+        final screenRect = _toScreen(rect, size);
+        if (!screenRect.isEmpty) target.add(screenRect);
+      }
+    }
+
+    _fillLayer(canvas, size, inactiveRects, _matchColor, 0.28);
+    _fillLayer(canvas, size, activeRects, _activeColor, 0.34);
+
+    if (activeRects.isNotEmpty) {
+      final stroke = Paint()
+        ..color = _activeColor.withValues(alpha: 0.85)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
+      for (final rect in activeRects) {
+        canvas.drawRect(rect, stroke);
+      }
+    }
+  }
+
+  void _fillLayer(
+    Canvas canvas,
+    Size size,
+    List<Rect> rects,
+    Color color,
+    double opacity,
+  ) {
+    if (rects.isEmpty) return;
+    canvas.saveLayer(
+      Offset.zero & size,
+      Paint()..color = Color.fromRGBO(0, 0, 0, opacity),
+    );
+    final fill = Paint()..color = color;
+    for (final rect in rects) {
+      canvas.drawRect(rect, fill);
+    }
+    canvas.restore();
+  }
+
+  Rect _toScreen(Rect rect, Size size) {
+    final left = math.min(rect.left, rect.right).clamp(0.0, 1.0);
+    final right = math.max(rect.left, rect.right).clamp(0.0, 1.0);
+    final top = math.min(rect.top, rect.bottom).clamp(0.0, 1.0);
+    final bottom = math.max(rect.top, rect.bottom).clamp(0.0, 1.0);
+    return Rect.fromLTRB(
+      left * size.width,
+      top * size.height,
+      right * size.width,
+      bottom * size.height,
+    );
+  }
+
+  @override
+  bool shouldRepaint(PdfSearchHighlightsPainter oldDelegate) {
+    return oldDelegate.matches != matches ||
+        oldDelegate.activeMatch != activeMatch;
+  }
 }

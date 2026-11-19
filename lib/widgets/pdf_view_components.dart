@@ -99,6 +99,8 @@ class PdfPagesList extends StatelessWidget {
   final double tileScaleThreshold;
   final int tileSize;
   final String visibilityKeyPrefix;
+  final Map<int, List<PdfSearchMatch>> searchResultsByPage;
+  final PdfSearchMatch? activeSearchMatch;
   final Future<void> Function(int pageIndex, double renderScale)
   onRequestRender;
 
@@ -119,6 +121,8 @@ class PdfPagesList extends StatelessWidget {
     required this.tileScaleThreshold,
     required this.tileSize,
     required this.visibilityKeyPrefix,
+    this.searchResultsByPage = const {},
+    this.activeSearchMatch,
     required this.onRequestRender,
   });
 
@@ -158,6 +162,10 @@ class PdfPagesList extends StatelessWidget {
             tileSize: tileSize,
             visibilityKey: Key('page_${visibilityKeyPrefix}_$pageIndex'),
             scrollController: scrollController,
+            searchMatches: searchResultsByPage[pageIndex] ?? const [],
+            activeSearchMatch: activeSearchMatch?.pageIndex == pageIndex
+                ? activeSearchMatch
+                : null,
           ),
         );
       },
